@@ -9,8 +9,6 @@ const STATIONARY_THRESHOLD = 3 // 鼠标几乎静止
 const MOVE_THRESHOLD = 10 // 鼠标明显移动(从静止恢复跑酷)
 const LERP_FACTOR = 0.14
 const CHAR_SIZE = 120 // px (人物精灵图,方形)
-const PHOTO_WIDTH = 320 // 照片静态宽度(与原 hero-image-container 一致)
-const PHOTO_HEIGHT = 380 // 照片静态高度(与原 hero-image-container 一致)
 
 // 精灵图:4×4 = 16 帧
 const SPRITE_COLS = 4
@@ -21,6 +19,7 @@ const TANTRUM_INTERVAL = 90 // ms per frame(撒泼打滚,稍慢)
 
 export default function RunCharacter() {
   const [phase, setPhase] = useState<Phase>("idle")
+  const phaseRef = useRef<Phase>("idle")
 
   const posRef = useRef({ x: 0, y: 0 })
   const mouseRef = useRef({ x: 0, y: 0 })
@@ -30,8 +29,14 @@ export default function RunCharacter() {
   const stationaryRef = useRef(false)
   const frameIndexRef = useRef(0)
   const lastFrameAdvanceRef = useRef(0)
+  const lastTapRef = useRef(0)
   const photoRef = useRef<HTMLDivElement>(null)
   const charRef = useRef<HTMLDivElement>(null)
+
+  // 同步 phase 到 ref,供全局事件读取最新值
+  useEffect(() => {
+    phaseRef.current = phase
+  }, [phase])
 
   const setOriginFromEl = useCallback(() => {
     const photo = photoRef.current
@@ -44,6 +49,7 @@ export default function RunCharacter() {
   const handleDoubleClick = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault()
+      e.stopPropagation()
       setOriginFromEl()
       mouseRef.current = { x: e.clientX, y: e.clientY }
       prevMouseRef.current = { x: e.clientX, y: e.clientY }
@@ -61,10 +67,30 @@ export default function RunCharacter() {
     setPhase("returning")
   }, [])
 
+  // 点击链接/按钮 → 跳回
   const handleGlobalClick = useCallback((e: MouseEvent) => {
     const target = e.target as HTMLElement
     if (target.closest("a, button")) {
       setPhase("returning")
+    }
+  }, [])
+
+  // 双击屏幕(非照片处)→ 跳回(桌面端)
+  const handleGlobalDblClick = useCallback(() => {
+    if (phaseRef.current !== "idle" && phaseRef.current !== "returning") {
+      setPhase("returning")
+    }
+  }, [])
+
+  // 移动端:快速双击(touch)屏幕 → 跳回
+  const handleTouchStart = useCallback(() => {
+    if (phaseRef.current === "idle" || phaseRef.current === "returning") return
+    const now = Date.now()
+    if (now - lastTapRef.current < 350) {
+      lastTapRef.current = 0
+      setPhase("returning")
+    } else {
+      lastTapRef.current = now
     }
   }, [])
 
@@ -145,12 +171,16 @@ export default function RunCharacter() {
     window.addEventListener("mousemove", onMove)
     window.addEventListener("contextmenu", handleContextMenu)
     window.addEventListener("click", handleGlobalClick)
+    window.addEventListener("dblclick", handleGlobalDblClick)
+    window.addEventListener("touchstart", handleTouchStart, { passive: true })
     return () => {
       window.removeEventListener("mousemove", onMove)
       window.removeEventListener("contextmenu", handleContextMenu)
       window.removeEventListener("click", handleGlobalClick)
+      window.removeEventListener("dblclick", handleGlobalDblClick)
+      window.removeEventListener("touchstart", handleTouchStart)
     }
-  }, [handleContextMenu, handleGlobalClick])
+  }, [handleContextMenu, handleGlobalClick, handleGlobalDblClick, handleTouchStart])
 
   useEffect(() => {
     setOriginFromEl()
@@ -181,11 +211,14 @@ export default function RunCharacter() {
     phase === "idle" ? "双击点我！！速！！" : "右键放我回来..."
 
   return (
-    <>
-      {/* 提示文字(照片上方) */}
+    <div className="relative" style={{ width: "100%", height: "100%" }}>
+      {/* 提示文字(照片上方,绝对定位不占文档流) */}
       <div
         style={{
-          marginBottom: 8,
+          position: "absolute",
+          top: -30,
+          left: "50%",
+          transform: "translateX(-50%)",
           textAlign: "center",
           fontSize: 16,
           fontWeight: 700,
@@ -202,8 +235,8 @@ export default function RunCharacter() {
         onDoubleClick={handleDoubleClick}
         className="run-photo"
         style={{
-          width: PHOTO_WIDTH,
-          height: PHOTO_HEIGHT,
+          width: "100%",
+          height: "100%",
           backgroundImage: photoBg,
           backgroundSize: "cover",
           backgroundPosition: "center top",
@@ -236,6 +269,6 @@ export default function RunCharacter() {
           }}
         />
       )}
-    </>
+    </div>
   )
 }
