@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import RunCharacter from "@/components/RunCharacter"
 
 export default function Portfolio() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -156,7 +157,7 @@ export default function Portfolio() {
               <div className="hero-content-wrapper">
                 <div className="hero-image-container animate-on-scroll">
                   <div className="hero-image-bg"></div>
-                  <img src="/images/me-02.jpg" alt="Profile" className="hero-image" />
+                  <RunCharacter />
                 </div>
                 <div className="hero-content">
                   <span className="hero-role">核科学与技术 在读博士生</span>
